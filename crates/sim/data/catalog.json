@@ -1,0 +1,12 @@
+{
+  "services": [
+    { "kind": "web", "name": "Web hosting", "prefix": "WEB", "zone": "dmz", "price": 90, "revenue_per_min": 12, "cost_per_min": 2, "port": 443 },
+    { "kind": "database", "name": "Database", "prefix": "DB", "zone": "internal", "price": 150, "revenue_per_min": 24, "cost_per_min": 6, "port": 5432 },
+    { "kind": "storage", "name": "Object storage", "prefix": "STORE", "zone": "internal", "price": 120, "revenue_per_min": 18, "cost_per_min": 4, "port": 9000 }
+  ],
+  "attacks": [
+    { "kind": "brute_force", "name": "Password guessing", "attacker_id": "packet-rat", "stage_seconds": 8 },
+    { "kind": "stolen_credential", "name": "Reused deployment credential", "attacker_id": "grey-market", "stage_seconds": 10 },
+    { "kind": "web_compromise", "name": "Unpatched web service", "attacker_id": "night-shift", "stage_seconds": 12 }
+  ]
+}

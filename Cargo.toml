@@ -1,0 +1,4 @@
+[workspace]
+members = ["crates/sim", "src-tauri"]
+default-members = ["crates/sim"]
+resolver = "2"
