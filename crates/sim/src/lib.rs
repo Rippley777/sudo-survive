@@ -1,6 +1,9 @@
+pub mod authority;
 pub mod model;
 pub mod query;
+#[cfg(feature = "local-store")]
 pub mod storage;
+use authority::{AttackOperation, CampaignController, WorldIdentity, WorldMode};
 pub use model::*;
 
 pub const DOLLAR: i64 = 1_000_000;
@@ -8,6 +11,7 @@ pub const DOLLAR: i64 = 1_000_000;
 impl Default for World {
     fn default() -> Self {
         let mut world = Self {
+            identity: WorldIdentity::default(),
             format_version: 1,
             tick: 0,
             cash: 160 * DOLLAR,
@@ -145,7 +149,7 @@ impl World {
             })
             .sum()
     }
-    pub fn view(&self) -> WorldView {
+    pub(crate) fn view(&self) -> WorldView {
         WorldView {
             tick: self.tick,
             cash: self.cash,
@@ -213,7 +217,7 @@ impl World {
         true
     }
     pub fn tick(&mut self) {
-        if self.paused {
+        if self.paused && self.identity.mode == WorldMode::LocalTraining {
             return;
         }
         self.tick += 1;
@@ -317,6 +321,8 @@ impl World {
             .unwrap();
         actor.attempts += 1;
         self.campaign = Some(AttackCampaign {
+            controller: CampaignController::Npc,
+            pending_operation: None,
             id: self.next_campaign,
             attacker: actor.id.clone(),
             target: target.clone(),
@@ -369,6 +375,15 @@ impl World {
             return;
         }
         let elapsed = self.tick - c.stage_since;
+        // NPC policy and player decisions select the same operations; only the
+        // authoritative tick resolves their effects against current defenses.
+        let operation = match c.controller {
+            CampaignController::Npc => AttackOperation::for_stage(&c.stage),
+            CampaignController::Player { .. } => c.pending_operation.clone(),
+        };
+        let Some(operation) = operation else {
+            return;
+        };
         let source = c.source_ip.clone();
         let target = c.target.clone();
         if matches!(
@@ -417,8 +432,8 @@ impl World {
         if elapsed < wait {
             return;
         }
-        match c.stage {
-            AttackStage::Reconnaissance => {
+        match operation {
+            AttackOperation::EnumeratePublicService => {
                 self.emit(
                     EventKind::NetworkConnection,
                     &target,
@@ -429,7 +444,7 @@ impl World {
                 );
                 c.stage = AttackStage::InitialAccess;
             }
-            AttackStage::InitialAccess => {
+            AttackOperation::AttemptInitialAccess => {
                 let valid_account = self.user.enabled
                     && self.user.allowed_hosts.contains(&target)
                     && c.discovered_credentials
@@ -488,7 +503,7 @@ impl World {
                     c.stage = AttackStage::Contained;
                 }
             }
-            AttackStage::Execution => {
+            AttackOperation::ExecuteSimulatedTask => {
                 self.emit(
                     EventKind::ProcessStarted,
                     &target,
@@ -499,7 +514,7 @@ impl World {
                 );
                 c.stage = AttackStage::Persistence;
             }
-            AttackStage::Persistence => {
+            AttackOperation::EstablishPersistence => {
                 for a in c
                     .current_access
                     .iter_mut()
@@ -519,8 +534,13 @@ impl World {
                 );
                 c.stage = AttackStage::Discovery;
             }
-            AttackStage::Discovery => {
-                c.known_hosts = self.servers.iter().map(|s| s.id.clone()).collect();
+            AttackOperation::DiscoverReachableHosts => {
+                c.known_hosts = self
+                    .servers
+                    .iter()
+                    .filter(|s| s.id == target || self.can_connect(&target, &s.id, "discovery"))
+                    .map(|s| s.id.clone())
+                    .collect();
                 if self.user.enabled {
                     c.discovered_credentials.push(self.user.credential.version);
                 }
@@ -534,7 +554,7 @@ impl World {
                 );
                 c.stage = AttackStage::LateralMovement;
             }
-            AttackStage::LateralMovement => {
+            AttackOperation::AttemptLateralMovement => {
                 let destinations: Vec<_> = self
                     .servers
                     .iter()
@@ -571,7 +591,7 @@ impl World {
                 }
                 c.stage = AttackStage::Collection;
             }
-            AttackStage::Collection => {
+            AttackOperation::CollectRecords => {
                 for a in &c.current_access {
                     if self.viable_access(a) {
                         self.emit(
@@ -586,7 +606,7 @@ impl World {
                 }
                 c.stage = AttackStage::Exfiltration;
             }
-            AttackStage::Exfiltration => {
+            AttackOperation::TransferRecords => {
                 for a in &c.current_access {
                     if self.viable_access(a) && self.can_connect(&a.host, "203.0.113.88", "https") {
                         c.data_lost_mb += 24;
@@ -602,8 +622,8 @@ impl World {
                 }
                 c.stage = AttackStage::Complete;
             }
-            AttackStage::Complete | AttackStage::Contained => {}
         }
+        c.pending_operation = None;
         c.stage_since = self.tick;
         self.campaign = Some(c);
     }
@@ -683,7 +703,7 @@ impl World {
         if contained {
             self.campaign = None;
         }
-        if contained {
+        if contained && self.identity.mode == WorldMode::LocalTraining {
             for a in &mut self.alerts {
                 a.resolved = true;
             }
@@ -737,7 +757,7 @@ impl World {
         }
         self.next_attack_tick = self.tick + 240;
     }
-    pub fn act(&mut self, action: Action) -> Result<(), String> {
+    pub(crate) fn act(&mut self, action: Action) -> Result<(), String> {
         let restoring = matches!(&action, Action::Restore { .. });
         match action {
             Action::Buy { kind } => {
@@ -792,12 +812,14 @@ impl World {
                 if self.servers[i].maintenance_until > self.tick {
                     return Err("Wait for maintenance to finish.".into());
                 }
-                if self.footholds.iter().any(|a| a.host == host) {
+                if self.identity.mode == WorldMode::LocalTraining
+                    && self.footholds.iter().any(|a| a.host == host)
+                {
                     return Err("Recovery check failed: restore a clean backup before reconnecting this host.".into());
                 }
                 self.servers[i].isolated = false;
                 for a in &mut self.alerts {
-                    if a.host == host {
+                    if self.identity.mode == WorldMode::LocalTraining && a.host == host {
                         a.resolved = true;
                     }
                 }
@@ -914,5 +936,7 @@ impl World {
     }
 }
 
+#[cfg(test)]
+mod authority_tests;
 #[cfg(test)]
 mod tests;

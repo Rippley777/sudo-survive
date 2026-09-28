@@ -3,6 +3,7 @@ use std::{
     sync::Mutex,
     time::{Duration, Instant},
 };
+use sudo_survive_sim::authority::{Command, Principal};
 use sudo_survive_sim::{storage::Store, Action, SecurityEvent, World, WorldView};
 use tauri::{Manager, State};
 
@@ -17,22 +18,29 @@ fn get_world(state: State<Mutex<Runtime>>) -> Result<WorldView, String> {
     if let Some(e) = &s.save_error {
         return Err(format!("Autosave failed: {e}"));
     }
-    Ok(s.world.view())
+    s.world
+        .defender_view(&Principal::local_operator(), &s.world.identity.network_id)
 }
 #[tauri::command]
 fn act(action: Action, state: State<Mutex<Runtime>>) -> Result<WorldView, String> {
     let mut s = state.lock().map_err(|e| e.to_string())?;
     let mut next = s.world.clone();
-    next.act(action)?;
+    next.apply(
+        &Principal::local_operator(),
+        Command::defend(next.identity.network_id.clone(), action),
+    )?;
     s.store.save(&next)?;
     s.world = next;
     s.save_error = None;
-    Ok(s.world.view())
+    s.world
+        .defender_view(&Principal::local_operator(), &s.world.identity.network_id)
 }
 #[tauri::command]
 fn search_logs(query: String, state: State<Mutex<Runtime>>) -> Result<Vec<SecurityEvent>, String> {
-    sudo_survive_sim::query::search(
-        &state.lock().map_err(|e| e.to_string())?.world.events,
+    let s = state.lock().map_err(|e| e.to_string())?;
+    s.world.defender_logs(
+        &Principal::local_operator(),
+        &s.world.identity.network_id,
         &query,
     )
 }

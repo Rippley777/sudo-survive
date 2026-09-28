@@ -252,6 +252,7 @@ fn patching_a_compromised_host_does_not_end_campaign() {
     assert!(!w.footholds.is_empty());
 }
 #[test]
+#[cfg(feature = "local-store")]
 fn sqlite_round_trip_preserves_campaign_and_next_tick() {
     let mut store = storage::Store::open(":memory:").unwrap();
     let mut original = exercise();

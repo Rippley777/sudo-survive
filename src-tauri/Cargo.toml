@@ -9,4 +9,4 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = [] }
 tauri-plugin-window-state = "2"
-sudo-survive-sim = { path = "../crates/sim" }
+sudo-survive-sim = { path = "../crates/sim", default-features = false, features = ["local-store"] }

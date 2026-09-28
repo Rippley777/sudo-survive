@@ -1,3 +1,4 @@
+use crate::authority::{AttackOperation, CampaignController, WorldIdentity};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -109,6 +110,10 @@ pub struct Access {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct AttackCampaign {
+    #[serde(default)]
+    pub controller: CampaignController,
+    #[serde(default)]
+    pub pending_operation: Option<AttackOperation>,
     pub id: u64,
     pub attacker: String,
     pub target: String,
@@ -227,6 +232,8 @@ pub enum Action {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct World {
+    #[serde(default)]
+    pub identity: WorldIdentity,
     pub format_version: u32,
     pub tick: u64,
     pub cash: i64,

@@ -4,6 +4,7 @@ use std::{
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
+use sudo_survive_sim::authority::{Command, Principal};
 use sudo_survive_sim::{storage::Store, Action, World};
 use tiny_http::{Header, Method, Response, Server};
 
@@ -46,7 +47,9 @@ fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let result: Result<serde_json::Value, String> = match (request.method(), request.url()) {
             (&Method::Get, "/api/state") => match save_error {
                 Some(e) => Err(format!("Autosave failed: {e}")),
-                None => Ok(serde_json::to_value(world.view())?),
+                None => world
+                    .defender_view(&Principal::local_operator(), &world.identity.network_id)
+                    .map(|v| serde_json::to_value(v).unwrap()),
             },
             (&Method::Post, "/api/action") => {
                 let mut body = String::new();
@@ -56,11 +59,16 @@ fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                     .and_then(|a| {
                         // Transaction-like memory semantics: a failed save never reports success.
                         let mut next: World = world.clone();
-                        next.act(a)?;
+                        next.apply(
+                            &Principal::local_operator(),
+                            Command::defend(next.identity.network_id.clone(), a),
+                        )?;
                         store.save(&next)?;
                         *world = next;
                         *save_error = None;
-                        Ok(serde_json::to_value(world.view()).unwrap())
+                        world
+                            .defender_view(&Principal::local_operator(), &world.identity.network_id)
+                            .map(|v| serde_json::to_value(v).unwrap())
                     })
             }
             (&Method::Post, "/api/search") => {
@@ -68,7 +76,13 @@ fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 request.as_reader().take(4096).read_to_string(&mut body)?;
                 serde_json::from_str::<String>(&body)
                     .map_err(|e| e.to_string())
-                    .and_then(|q| sudo_survive_sim::query::search(&world.events, &q))
+                    .and_then(|q| {
+                        world.defender_logs(
+                            &Principal::local_operator(),
+                            &world.identity.network_id,
+                            &q,
+                        )
+                    })
                     .map(|v| serde_json::to_value(v).unwrap())
             }
             _ => Err("Unknown endpoint".into()),

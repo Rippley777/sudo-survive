@@ -1,7 +1,16 @@
 # sudo survive
 
-A tiny data center for the edge of your desktop. A playable, defensive-first
-infrastructure game built with Tauri, Rust, React, TypeScript, and SQLite.
+A tiny data center for the edge of your desktop, designed for a persistent
+cybersecurity MMO where every player can attack and defend fictional networks.
+The current playable build is **local training**, built with Tauri, Rust, React,
+TypeScript, and SQLite. There are no hosted accounts or live PvP yet.
+
+The simulation now has scoped player/network identities, an authorized command/view
+boundary, and queued attacker operations that use the same resolver and telemetry
+as NPC campaigns. These are library foundations, tested in a two-principal harness;
+they are not a player-facing offensive UI or an authenticated backend. The planned
+Rust/PostgreSQL host will own online state; local saves will never import money,
+inventory, attack results, or intelligence into the MMO.
 
 ## Run the desktop app
 
@@ -81,6 +90,8 @@ move the browser window. Restart the bridge after Rust changes; React hot-reload
 - Saves are transactional, every five ticks and after every successful action;
   the desktop also saves on graceful quit. A crash can lose up to five seconds.
 - Closing the application freezes simulated time. Offline catch-up is deferred.
+- This applies to local training only. Hosted networks will continue while clients
+  are away; client clocks, pause controls, and SQLite saves will have no authority.
 - Save errors are shown; incompatible/corrupt saves are not silently replaced.
 - To start over, quit the app and move its database and any `-wal`/`-shm` sidecars
   into a backup directory. The next launch creates a fresh world.
@@ -91,6 +102,7 @@ move the browser window. Restart the bridge after Rust changes; React hot-reload
 npm test
 npm run build
 cargo clippy --workspace --all-targets -- -D warnings
+cargo test -p sudo-survive-sim --no-default-features
 npx playwright install chromium
 npm run test:ui
 ```
@@ -101,6 +113,9 @@ complete incident-response loop, purchase/deployment, state across page reload,
 query errors, and compact/sidebar/collapsed layouts. Rust tests cover causal attack
 constraints, deterministic replay, persistence, and recovery. Page reload checks
 are separate from the Rust test that verifies SQLite save/load continuity.
+Authority tests cover cross-network access rejection, campaign-controller checks,
+projection isolation, NPC/player event equivalence, independent defensive responses,
+queued-operation reload, and compatibility with existing local saves.
 
 ## Layout and scope
 
@@ -108,12 +123,16 @@ are separate from the Rust test that verifies SQLite save/load continuity.
 - [TECHNICAL_DESIGN.md](TECHNICAL_DESIGN.md): boundaries, models, event pipeline,
   state machine, persistence, and extension points.
 - `crates/sim/src`: engine, models, query language, SQLite repository, causal tests.
+- `crates/sim/src/authority.rs`: principal/ownership boundary, typed campaign
+  decisions, and separate owner/attacker projections. Authentication remains external.
 - `crates/sim/data/catalog.json`: three service types and three attack entry paths.
 - `crates/sim/migrations/001_initial.sql`: initial versioned SQLite schema.
 - `src-tauri`: desktop scheduler, commands, window state, and packaging.
 - `src`: observable world rendering and player controls.
 
-This is the first vertical slice. General firewall editing, benign alert noise,
+This is the first local vertical slice of the MMO design. Hosted authority,
+recon/fog-of-war progression, asynchronous PvP, anti-griefing policies, and online
+recovery guarantees remain future work. General firewall editing, benign alert noise,
 detector tuning, advanced EDR views, backup scheduling, offline progress, attacker
 learning, employees, and response automation are future work. Network segmentation
 currently denies DMZ-to-internal SSH; the shared deployment identity intentionally
