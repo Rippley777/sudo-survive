@@ -14,6 +14,7 @@
     "test:ui": "playwright test"
   },
   "dependencies": {
+    "@house-edge/analytics": "file:vendor/house-edge-analytics-0.1.1.tgz",
     "@tauri-apps/api": "^2.8.0",
     "lucide-react": "^0.468.0",
     "react": "^19.1.0",

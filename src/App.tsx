@@ -1,3 +1,4 @@
+import { trackView } from "./lib/analytics";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Activity,
@@ -319,6 +320,9 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [tab, setTab] = useState<Tab>("events");
+  useEffect(() => {
+    trackView(expanded ? tab : "rack");
+  }, [expanded, tab]);
   const [selected, setSelected] = useState("WEB-01");
   const [shop, setShop] = useState(false);
   const [help, setHelp] = useState(false);

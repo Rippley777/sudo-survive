@@ -7,3 +7,6 @@ playwright-report/
 .DS_Store
 src-tauri/gen/
 *.tsbuildinfo
+
+.env*
+!.env.example
