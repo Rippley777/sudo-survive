@@ -139,3 +139,9 @@ currently denies DMZ-to-internal SSH; the shared deployment identity intentional
 demonstrates the risk of overly broad authorization. Recovery uses a clean immutable
 starter backup. Incident metrics are measured at campaign close, with ongoing
 asset downtime visible in the workbench.
+
+## License
+
+[MIT NON-AI License](LICENSE). This custom, source-available license permits use, modification, and redistribution subject to its terms, but **prohibits all AI/ML use of the code**, including training, inference, AI integrations, and supplying the code to AI coding tools, unless separately authorized in writing by the applicable copyright holder(s). It is not the standard MIT License or an OSI-approved open-source license.
+
+Third-party components and assets retain their own licenses. Previously granted licenses are not retroactively revoked. See the license file for the full terms.
