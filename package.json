@@ -11,7 +11,12 @@
     "build": "tsc -b && vite build",
     "desktop:build": "tauri build",
     "test": "cargo test -p sudo-survive-sim",
-    "test:ui": "playwright test"
+    "test:ui": "playwright test",
+    "release:desktop": "node scripts/macos-release.mjs",
+    "release:mac": "node scripts/macos-release.mjs",
+    "release:mac:check": "node scripts/macos-release.mjs --check",
+    "release:mac:sign": "node scripts/macos-release.mjs --sign-only",
+    "test:macos-release": "node --test scripts/macos-release.test.mjs"
   },
   "dependencies": {
     "@house-edge/analytics": "file:vendor/house-edge-analytics-0.1.1.tgz",
